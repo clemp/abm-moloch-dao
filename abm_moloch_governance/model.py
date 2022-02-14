@@ -48,6 +48,12 @@ def realized_proposal_value(model):
     """
     return model.realized_proposal_value
 
+def pct_passing_votes(model):
+    if len(model.votes) == model.num_proposals:
+        return sum(model.votes) / len(model.votes)
+    else:
+        pass
+
 def generate_proposal(dimensions: int) -> dict:
     id = uuid.uuid4()
     values = [random.uniform(0, 1) for _ in range(dimensions)]
@@ -56,8 +62,8 @@ def generate_proposal(dimensions: int) -> dict:
 class MolochDAO(Model):
     def __init__(
         self, 
-        num_nodes = 3,
-        avg_node_degree = 2,
+        num_nodes = 12,
+        avg_node_degree = 5,
         proposal_dimension = 2, # number of categories considered in evaluating the value of the proposal
         evaluation_period = 3, # num. time steps for agents to evaluate the proposal
         num_proposals = 3
@@ -69,19 +75,22 @@ class MolochDAO(Model):
         self.grid = NetworkGrid(self.G)
         self.schedule = RandomActivation(self)
         self.proposal_dimension = proposal_dimension
+        self.num_proposals = num_proposals
         self.evaluation_period = evaluation_period
         # data variables to track
         self.true_proposal_value = 0
         self.realized_proposal_value = 0 # initialize the cumulative value of proposals passed by the org.
         self.perceived_proposal_value = 0
+        self.votes = []
         # self.proposals = [random.uniform(0,1) for _ in range(num_proposals)]
         # self.num_outstanding_proposals = num_proposals
         self.datacollector = DataCollector(
             {
                 # "perceived_proposal_value": perceived_proposal_value(self)
-                "perceived_proposal_value": perceived_proposal_value,
+                # "perceived_proposal_value": perceived_proposal_value,
                 "true_proposal_value": true_proposal_value,
-                "realized_proposal_value": realized_proposal_value
+                "realized_proposal_value": realized_proposal_value,
+                "percent_passing_votes": pct_passing_votes
             }
         )
 
@@ -92,7 +101,7 @@ class MolochDAO(Model):
             # set the support threshold
             ## option 1: if perceived value is greater than actual (unknown to agent) max value.
             ## 
-            support_threshold = random.uniform(0, self.proposal_dimension) # between 0 (will support anything) and max perceived value of the proposal (it must be perfect)
+            support_threshold = random.uniform(0.0, self.proposal_dimension) # between 0 (will support anything) and max perceived value of the proposal (it must be perfect)
             
             # create agent
             agent = MemberAgent(
@@ -105,13 +114,17 @@ class MolochDAO(Model):
             # add agent to node on the network
             self.grid.place_agent(agent, node)
 
-        self.running = True
         self.datacollector.collect(self)
+        self.running = True
+
+    def votes(self):
+        return self.votes
 
     def step(self):
-        self.schedule.step()
         # collect data
         self.datacollector.collect(self)
+        self.schedule.step()
+
 
     def run(self) -> None:
         # while self.num_outstanding_proposals > 0:
@@ -123,10 +136,10 @@ class MolochDAO(Model):
         # print(self.G.nodes())
 
         # each iteration of the model (currently set to 5)
-        for i in range(15):
+        for i in range(self.num_proposals):
             # create a new proposal
             proposal = generate_proposal(self.proposal_dimension)
-            votes = [] # initialize empty vote bank
+            agent_votes = [] # initialize empty vote bank
             perceived_value = [] # initialize empty perceived value tracker
             # record (theoretical) true proposal value
             self.true_proposal_value += sum(proposal)
@@ -137,7 +150,7 @@ class MolochDAO(Model):
                 agent.evaluate_proposal(proposal)
 
             # influence neighbors for specified number of steps (currently set to 3)
-            for i in range(3):
+            for s in range(self.evaluation_period):
                 self.step() # this activates each agent's step function
 
             # vote on proposal then reset evaluation
@@ -145,16 +158,23 @@ class MolochDAO(Model):
                 vote = agent.vote()
                 # if more than 50% vote add proposal value to org.
                 if vote:
-                    votes.append(1)
+                    agent_votes.append(1)
                 else:
-                    votes.append(0)
+                    agent_votes.append(0)
                 # print(vote)
                 # agent's reset their proposal opinion and get ready for the next one
                 agent.reset_evaluation()
             
             # if > 50% of vote is made
-            if sum(votes) / self.num_nodes > 0.5:
+            print("proposal number", i)
+            if sum(agent_votes) / self.num_nodes > 0.5:
                 self.realized_proposal_value += sum(proposal)
+                self.votes.append(1) # count that a vote passed
+            else:
+                self.votes.append(0) # count that a vote didn't pass
+            print("num proposals voted", len(self.votes))
+        print(self.votes)
+        self.votes = [] # reset votes
 
 class MemberAgent(Agent):
     def __init__(
@@ -221,9 +241,16 @@ class MemberAgent(Agent):
         # vote on proposal
 
 if __name__ == "__main__":
-    model = MolochDAO()
+    params = {
+    "num_nodes": 5, # number of DAO members
+    "avg_node_degree": 3, # how many other DAO members is each connected to?
+    "proposal_dimension": 2, # number of categories considered in evaluating the value of the proposal
+    "evaluation_period": 3, # num. time steps for agents to evaluate the proposal
+    "num_proposals": 3
+    }
+    model = MolochDAO(**params)
     model.run()
     model_df = model.datacollector.get_model_vars_dataframe()
     model_df.head()
-    model_df.plot()
+    # model_df.plot()
         
