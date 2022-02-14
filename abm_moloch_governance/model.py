@@ -56,11 +56,11 @@ def generate_proposal(dimensions: int) -> dict:
 class MolochDAO(Model):
     def __init__(
         self, 
-        num_nodes = 5,
-        avg_node_degree = 3,
+        num_nodes = 3,
+        avg_node_degree = 2,
         proposal_dimension = 2, # number of categories considered in evaluating the value of the proposal
         evaluation_period = 3, # num. time steps for agents to evaluate the proposal
-        num_proposals = 10
+        num_proposals = 3
     ) -> None:
 
         self.num_nodes = num_nodes
@@ -125,7 +125,7 @@ class MolochDAO(Model):
         # each iteration of the model (currently set to 5)
         for i in range(15):
             # create a new proposal
-            proposal = generate_proposal(3)
+            proposal = generate_proposal(self.proposal_dimension)
             votes = [] # initialize empty vote bank
             perceived_value = [] # initialize empty perceived value tracker
             # record (theoretical) true proposal value
