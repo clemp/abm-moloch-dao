@@ -134,9 +134,11 @@ class MolochDAO(Model):
         agents = self.grid.get_cell_list_contents(self.G.nodes())
 
         # print(self.G.nodes())
-
+        # temp list to store voting history of proposals
+        temp_vote_list = []
         # each iteration of the model (currently set to 5)
         for i in range(self.num_proposals):
+            
             # create a new proposal
             proposal = generate_proposal(self.proposal_dimension)
             agent_votes = [] # initialize empty vote bank
@@ -164,17 +166,21 @@ class MolochDAO(Model):
                 # print(vote)
                 # agent's reset their proposal opinion and get ready for the next one
                 agent.reset_evaluation()
-            
+
             # if > 50% of vote is made
-            print("proposal number", i)
+            # print("proposal number", i)
             if sum(agent_votes) / self.num_nodes > 0.5:
                 self.realized_proposal_value += sum(proposal)
+                # temp_vote_list.append(1) # count that a vote passed
                 self.votes.append(1) # count that a vote passed
             else:
+                # temp_vote_list.append(0) # count that a vote didn't pass
                 self.votes.append(0) # count that a vote didn't pass
-            print("num proposals voted", len(self.votes))
-        print(self.votes)
-        self.votes = [] # reset votes
+
+        # self.votes.append(temp_vote_list)
+            # temp_vote_list = [] # reset
+        # self.votes = [] # reset votes
+        # print("proposal finished")
 
 class MemberAgent(Agent):
     def __init__(
@@ -246,11 +252,12 @@ if __name__ == "__main__":
     "avg_node_degree": 3, # how many other DAO members is each connected to?
     "proposal_dimension": 2, # number of categories considered in evaluating the value of the proposal
     "evaluation_period": 3, # num. time steps for agents to evaluate the proposal
-    "num_proposals": 3
+    "num_proposals": 10
     }
     model = MolochDAO(**params)
-    model.run()
-    model_df = model.datacollector.get_model_vars_dataframe()
-    model_df.head()
-    # model_df.plot()
-        
+
+    for i in range(10):
+        model.run()
+        # print(model.votes)
+        print(sum(model.votes) / len(model.votes)) # count how many proposals passed in this simulation run
+        model.votes = [] # reset and get ready for the next run    
